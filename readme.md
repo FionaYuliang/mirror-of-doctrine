@@ -132,6 +132,7 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
         2.  `https://doctrine-of-signatures.net/_static/index.html??` 替换为`../../_static/index.html..`
         3.  `"https://doctrine-of-signatures.net/wp-`替换为`"../../wp-`
         4.  `https://doctrine-of-signatures.net/en/home-en/index.html`替换为`./index.html`
+        5.  `https://doctrine-of-signatures.net/"`替换为`#"`
 3.  全部英文文件中, `%3F`替换为`?`
 
 
