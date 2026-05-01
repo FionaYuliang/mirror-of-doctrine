@@ -147,6 +147,7 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
     1. `https://doctrine-of-signatures.net/wp-`替换为`../../../wp-`
     2. `https://doctrine-of-signatures.net/"`替换为`../index.html"`
     3. `"https://doctrine-of-signatures.net/zh`替换为`"../../../../zh`
+    4. `"https://doctrine-of-signatures.net/home/s`替换为`"../../../../zh/home/s`
 
 
 # 存在问题
