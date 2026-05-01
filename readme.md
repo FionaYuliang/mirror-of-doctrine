@@ -143,6 +143,8 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
     3.  全部英文文件中, 确保`../../_static/index.html..`类文件,后缀名为.css
     4. 移除`<link rel="alternate" .+>`
     5. 移除`/*# sourceURL=https://doctrine-of-signatures.net.+`
+ 4. 在s 系列文件夹中
+    1. `https://doctrine-of-signatures.net/wp-`替换为`../../../wp-`
 
 
 # 存在问题
