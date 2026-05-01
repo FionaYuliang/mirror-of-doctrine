@@ -134,6 +134,8 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
         4.  `https://doctrine-of-signatures.net/en/home-en/index.html`替换为`./index.html`
         5.  `https://doctrine-of-signatures.net/"`替换为`#"`
         6.  `https://doctrine-of-signatures.net/en/home-en/s`替换为`./s`
+        7.  `../credits-en.html`替换为`./credits-en.html`
+        8.  `https://doctrine-of-signatures.net/zh/home/`替换为`../../zh/home/`
 3.  全部英文文件中, `%3F`替换为`?`
 
 
