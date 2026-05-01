@@ -4,24 +4,24 @@
 	font-style: normal;
 	font-weight: normal;
 	font-display: auto;
-	src: url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman.eot');
-	src: url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman.eot?#iefix') format('embedded-opentype'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman.woff2') format('woff2'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman.woff') format('woff'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman-1.ttf') format('truetype'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/times-new-roman.svg#HelveticaNeue') format('svg');
+	src: url('../wp-content/uploads/2022/06/times-new-roman.eot');
+	src: url('../wp-content/uploads/2022/06/times-new-roman.eot?#iefix') format('embedded-opentype'),
+		url('../wp-content/uploads/2022/06/times-new-roman.woff2') format('woff2'),
+		url('../wp-content/uploads/2022/06/times-new-roman.woff') format('woff'),
+		url('../wp-content/uploads/2022/06/times-new-roman-1.ttf') format('truetype'),
+		url('../wp-content/uploads/2022/06/times-new-roman.svg#HelveticaNeue') format('svg');
 }
 @font-face {
 	font-family: 'Helvetica Neue';
 	font-style: normal;
 	font-weight: normal;
 	font-display: auto;
-	src: url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.eot');
-	src: url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.eot?#iefix') format('embedded-opentype'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.woff2') format('woff2'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.woff') format('woff'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.ttf') format('truetype'),
-		url('https://doctrine-of-signatures.net/wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.svg#HelveticaNeue') format('svg');
+	src: url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.eot');
+	src: url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.eot?#iefix') format('embedded-opentype'),
+		url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.woff2') format('woff2'),
+		url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.woff') format('woff'),
+		url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.ttf') format('truetype'),
+		url('../wp-content/uploads/2022/06/Helvetica-Neue-W01-77-Bd-Cn-Obl.svg#HelveticaNeue') format('svg');
 }
 /* End Custom Fonts CSS *//*!
  * Font Awesome Free 5.15.3 by @fontawesome - https://fontawesome.com
