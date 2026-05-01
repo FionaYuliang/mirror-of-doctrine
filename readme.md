@@ -1,5 +1,10 @@
 # 目标站点
 
+原中文地址: https://doctrine-of-signatures.net/zh/home/
+
+原英文地址: https://doctrine-of-signatures.net/en/home-en/
+
+用于验证的vercel 地址 =>  https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures.net/zh/home
 
 
 # 需求描述
@@ -113,3 +118,9 @@ graph LR
     note1[修复后: 无论部署在哪个文件夹<br/>资源都能自动找回正确位置]
     SubDir -.-> note1
 ```
+
+# 英文版过程记录
+
+1.  寻找空文件夹, 下载英文相关资源
+
+wget --mirror --convert-links --adjust-extension --page-requisites --no-parent --directory-prefix=zh/home https://doctrine-of-signatures.net/en/home-en/
