@@ -146,6 +146,7 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
  4. 在s 系列文件夹中
     1. `https://doctrine-of-signatures.net/wp-`替换为`../../../wp-`
     2. `https://doctrine-of-signatures.net/"`替换为`../index.html"`
+    3. `"https://doctrine-of-signatures.net/zh`替换为`"../../../../zh`
 
 
 # 存在问题
