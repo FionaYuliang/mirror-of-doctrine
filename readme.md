@@ -4,7 +4,7 @@
 
 原英文地址: https://doctrine-of-signatures.net/en/home-en/
 
-用于验证的vercel 地址 =>  https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures.net/zh/home
+用于验证的vercel 地址 =>  https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures.net/zh/home/index.html
 
 
 # 需求描述
@@ -124,3 +124,11 @@ graph LR
 1.  寻找空文件夹, 下载英文相关资源
 
 wget --mirror --convert-links --adjust-extension --page-requisites --no-parent --directory-prefix=zh/home https://doctrine-of-signatures.net/en/home-en/
+
+
+# 存在问题
+
+1.  由于使用了相对地址计算资源位置, 因此入口页不能使用简略形式,只能使用`https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures.net/zh/home/index.html` 进入. 若忽略 index.html, 会导致资源加载异常
+2.  在测试站点上, 由于文件名过长, 出现了 404 . 不确定 word-press 站点是否有同样问题
+https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures.net/_static/index.html..-eJxlzNEKgzAMheEXWhsmw3ojPosrQWJtWppI2dtbwbGBt%252F85fDUbn1iRFfK2L8QCKy4GN4ytpWICKcwiqG0QuLqAKPnw+f7sKo96l35KLulPqfjOsw9ntWVnpYg2EjdliuPTuX4YXr3rDnsUOkE=.css
+3.  右侧导航栏点击能力未生效
