@@ -127,7 +127,9 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
 
 2.  使用 idea, 比较中文/英文版之间的区别, 同步至英文版
     1.  credits-en.html 和 index.html 平级, 以便统一层级
-    2.  在credits-en.html/index.html文件中, `'https://doctrine-of-signatures.net/wp-`替换为`'../../wp-`
+    2.  在credits-en.html/index.html文件中, 
+        1.  `'https://doctrine-of-signatures.net/wp-`替换为`'../../wp-`
+        2.  `https://doctrine-of-signatures.net/_static/index.html??` 替换为`../../_static/index.html..`
 3.  全部英文文件中, `%3F`替换为`?`
 
 
