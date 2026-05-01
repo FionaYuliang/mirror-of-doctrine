@@ -142,6 +142,7 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
     2.  `index.html??`重命名为`index.html..`
     3.  全部英文文件中, 确保`../../_static/index.html..`类文件,后缀名为.css
     4. 移除`<link rel="alternate" .+>`
+    5. 移除`/*# sourceURL=https://doctrine-of-signatures.net.+`
 
 
 # 存在问题
