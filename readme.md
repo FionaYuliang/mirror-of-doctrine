@@ -138,6 +138,8 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent -
         8.  `https://doctrine-of-signatures.net/zh/home/`替换为`../../zh/home/`
         9.  `https://doctrine-of-signatures.net/home/s`替换为`../../zh/home/s`
 3.  全部英文文件中, `%3F`替换为`?`
+4.  `index.html??`重命名为`index.html..`
+5.  全部英文文件中, 确保`../../_static/index.html..`类文件,后缀名为.css
 
 
 # 存在问题
