@@ -24,6 +24,48 @@
 1.  如何进行该工作
 2.  使用 markdown 将工作流程绘制出来
 
+## 本地调试环境
+
+当前仓库已提供基于 Express 的本地预览服务，用于模拟 Nginx / WordPress 常见的静态访问行为：
+
+1. 自动将目录请求映射到 `index.html`
+2. 自动补齐目录尾部 `/`，便于验证相对路径资源
+3. 支持直接访问 `index.html`，也支持访问目录路径
+4. 默认首页跳转到 `/zh/home/`
+5. 支持额外挂载到任意父路径，便于验证子目录部署
+
+启动方式：
+
+```bash
+npm install
+npm run dev
+```
+
+默认访问地址：
+
+```text
+http://127.0.0.1:3000/zh/home/
+```
+
+如需模拟部署到子路径，例如 `/show/zh`：
+
+```bash
+MOUNT_PATH=/show/zh npm run dev
+```
+
+此时可访问：
+
+```text
+http://127.0.0.1:3000/show/zh/zh/home/
+```
+
+说明：
+
+1. `SITE_ROOT` 默认为 `resource/doctrine-of-signatures.net`
+2. `START_PAGE` 默认为 `/zh/home/`
+3. `HOST` 默认为 `127.0.0.1`
+4. `PORT` 默认为 `3000`
+
 
 # 执行路径
 

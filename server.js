@@ -1,117 +1,190 @@
-const http = require("http");
+const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const { URL } = require("url");
 
-const HOST = process.env.HOST || "127.0.0.1";
-const PORT = Number(process.env.PORT || 3000);
-const SITE_ROOT = path.resolve(
-  process.cwd(),
-  process.env.SITE_ROOT || "resource/doctrine-of-signatures.net"
-);
-
-const MIME_TYPES = {
-  ".avif": "image/avif",
-  ".css": "text/css; charset=utf-8",
-  ".eot": "application/vnd.ms-fontobject",
-  ".gif": "image/gif",
-  ".html": "text/html; charset=utf-8",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".js": "application/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".map": "application/json; charset=utf-8",
-  ".mp4": "video/mp4",
-  ".otf": "font/otf",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".txt": "text/plain; charset=utf-8",
-  ".webm": "video/webm",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".xml": "application/xml; charset=utf-8"
-};
-
-function send(res, statusCode, headers, body) {
-  res.writeHead(statusCode, headers);
-  res.end(body);
-}
-
-function resolveRequestPath(urlPathname) {
-  const decodedPath = decodeURIComponent(urlPathname);
-  const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, "");
-  let filePath = path.join(SITE_ROOT, safePath);
-
-  if (decodedPath.endsWith("/")) {
-    filePath = path.join(filePath, "index.html");
+function normalizeMountPath(input) {
+  if (!input || input === "/") {
+    return "/";
   }
 
-  return filePath;
+  const trimmed = `/${input}`.replace(/\/+/g, "/").replace(/\/$/, "");
+  return trimmed === "" ? "/" : trimmed;
 }
 
-function serveFile(filePath, res) {
-  fs.stat(filePath, (statError, stats) => {
-    if (statError) {
-      send(
-        res,
-        404,
-        { "Content-Type": "text/plain; charset=utf-8" },
-        `Not found: ${filePath}`
-      );
-      return;
-    }
+function normalizeStartPage(input) {
+  const normalized = `/${input || ""}`.replace(/\/+/g, "/");
+  return normalized.endsWith("/") ? normalized : `${normalized}/`;
+}
+
+function stripMountPrefix(requestPath, mountPath) {
+  if (mountPath === "/") {
+    return requestPath;
+  }
+
+  if (requestPath === mountPath) {
+    return "/";
+  }
+
+  if (requestPath.startsWith(`${mountPath}/`)) {
+    return requestPath.slice(mountPath.length) || "/";
+  }
+
+  return null;
+}
+
+function resolveSafePath(siteRoot, urlPath) {
+  const decodedPath = decodeURIComponent(urlPath);
+  const normalized = path.normalize(decodedPath);
+  const relativePath = normalized.replace(/^(\.\.(\/|\\|$))+/, "");
+  const resolvedPath = path.resolve(siteRoot, `.${path.sep}${relativePath}`);
+
+  if (!resolvedPath.startsWith(siteRoot)) {
+    return null;
+  }
+
+  return resolvedPath;
+}
+
+function findExistingFile(siteRoot, urlPath) {
+  const basePath = resolveSafePath(siteRoot, urlPath);
+
+  if (!basePath) {
+    return { type: "forbidden" };
+  }
+
+  if (fs.existsSync(basePath)) {
+    const stats = fs.statSync(basePath);
 
     if (stats.isDirectory()) {
-      serveFile(path.join(filePath, "index.html"), res);
-      return;
+      const indexPath = path.join(basePath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        return { type: "directory", filePath: indexPath };
+      }
+    } else {
+      return { type: "file", filePath: basePath };
     }
+  }
 
-    const extension = path.extname(filePath).toLowerCase();
-    const contentType =
-      MIME_TYPES[extension] || "application/octet-stream";
+  if (!path.extname(basePath)) {
+    const htmlPath = `${basePath}.html`;
+    if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+      return { type: "file", filePath: htmlPath };
+    }
+  }
 
-    res.writeHead(200, {
-      "Content-Type": contentType,
-      "Cache-Control": "no-store"
-    });
-
-    const stream = fs.createReadStream(filePath);
-    stream.on("error", () => {
-      send(
-        res,
-        500,
-        { "Content-Type": "text/plain; charset=utf-8" },
-        `Failed to read: ${filePath}`
-      );
-    });
-    stream.pipe(res);
-  });
+  return { type: "missing" };
 }
 
-const server = http.createServer((req, res) => {
-  const requestUrl = new URL(req.url, `http://${req.headers.host || HOST}`);
-  let filePath = resolveRequestPath(requestUrl.pathname);
+function requestLogger(req, _res, next) {
+  const now = new Date().toISOString();
+  console.log(`${now} ${req.method} ${req.originalUrl}`);
+  next();
+}
 
-  if (!filePath.startsWith(SITE_ROOT)) {
-    send(
-      res,
-      403,
-      { "Content-Type": "text/plain; charset=utf-8" },
-      "Forbidden"
-    );
-    return;
+function createPreviewHandler(siteRoot, mountPath, startPage) {
+  return function previewHandler(req, res, next) {
+    const relativePath = stripMountPrefix(req.path, mountPath);
+
+    if (relativePath === null) {
+      return next();
+    }
+
+    if (relativePath === "/") {
+      const redirectTarget =
+        mountPath === "/"
+          ? startPage
+          : `${mountPath}${startPage === "/" ? "" : startPage}`;
+      return res.redirect(302, redirectTarget);
+    }
+
+    const match = findExistingFile(siteRoot, relativePath);
+
+    if (match.type === "forbidden") {
+      return res.status(403).type("text/plain; charset=utf-8").send("Forbidden");
+    }
+
+    if (match.type === "directory") {
+      if (!req.path.endsWith("/")) {
+        const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+        return res.redirect(301, `${req.path}/${query}`);
+      }
+
+      return res.sendFile(match.filePath, {
+        headers: {
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
+    if (match.type === "file") {
+      return res.sendFile(match.filePath, {
+        headers: {
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
+    return next();
+  };
+}
+
+function createApp(config = {}) {
+  const siteRoot = path.resolve(
+    process.cwd(),
+    config.siteRoot || process.env.SITE_ROOT || "resource/doctrine-of-signatures.net"
+  );
+  const mountPath = normalizeMountPath(config.mountPath || process.env.MOUNT_PATH || "/");
+  const startPage = normalizeStartPage(config.startPage || process.env.START_PAGE || "/zh/home/");
+  const app = express();
+
+  app.disable("x-powered-by");
+  app.use(requestLogger);
+
+  if (mountPath !== "/") {
+    app.use(createPreviewHandler(siteRoot, mountPath, startPage));
   }
 
-  if (requestUrl.pathname === "/") {
-    filePath = path.join(SITE_ROOT, "zh/home/index.html");
-  }
+  app.use(createPreviewHandler(siteRoot, "/", startPage));
 
-  serveFile(filePath, res);
-});
+  app.use((req, res) => {
+    res.status(404).type("text/plain; charset=utf-8").send(`Not found: ${req.originalUrl}`);
+  });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Static preview server running at http://${HOST}:${PORT}`);
-  console.log(`Serving files from ${SITE_ROOT}`);
-  console.log(`Default page: http://${HOST}:${PORT}/zh/home/`);
-});
+  return {
+    app,
+    config: {
+      host: config.host || process.env.HOST || "127.0.0.1",
+      port: Number(config.port || process.env.PORT || 3000),
+      siteRoot,
+      mountPath,
+      startPage
+    }
+  };
+}
+
+function startServer(config = {}) {
+  const { app, config: resolved } = createApp(config);
+  const server = app.listen(resolved.port, resolved.host, () => {
+    const origin = `http://${resolved.host}:${resolved.port}`;
+    const mountedHome =
+      resolved.mountPath === "/"
+        ? `${origin}${resolved.startPage}`
+        : `${origin}${resolved.mountPath}${resolved.startPage}`;
+
+    console.log(`Static preview server running at ${origin}`);
+    console.log(`Serving files from ${resolved.siteRoot}`);
+    console.log(`Mount path: ${resolved.mountPath}`);
+    console.log(`Default page: ${mountedHome}`);
+  });
+
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  createApp,
+  startServer
+};
