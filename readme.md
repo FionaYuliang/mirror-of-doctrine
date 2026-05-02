@@ -3,7 +3,8 @@
 ||中文|英文|
 |:--|:--|:--|
 |原网站|[https://doctrine-of-signatures.net/zh/home/](https://doctrine-of-signatures.net/zh/home/)|[https://doctrine-of-signatures.net/en/home-en/](https://doctrine-of-signatures.net/en/home-en/)|
-|镜像站|[vercel-zh](https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures/zh/home/index.html)|[vercel-en](https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures/en/home-en/index.html)|
+|镜像站-vercel|[zh](https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures/zh/home/index.html)|[vercel-en](https://mirror-of-doctrine.vercel.app/resource/doctrine-of-signatures/en/home-en/index.html)|
+|镜像站-github|[zh](https://fionayuliang.github.io/mirror-of-doctrine/resource/doctrine-of-signatures/zh/home/index.html)|[vercel-en](https://fionayuliang.github.io/mirror-of-doctrine/resource/doctrine-of-signatures/en/home-en/index.html)|
 
 原中文地址: https://doctrine-of-signatures.net/zh/home/
 
