@@ -131,7 +131,7 @@ function createPreviewHandler(siteRoot, mountPath, startPage) {
 function createApp(config = {}) {
   const siteRoot = path.resolve(
     process.cwd(),
-    config.siteRoot || process.env.SITE_ROOT || "resource/doctrine-of-signatures.net"
+    config.siteRoot || process.env.SITE_ROOT || "resource/doctrine-of-signatures"
   );
   const mountPath = normalizeMountPath(config.mountPath || process.env.MOUNT_PATH || "/");
   const startPage = normalizeStartPage(config.startPage || process.env.START_PAGE || "/zh/home/");
