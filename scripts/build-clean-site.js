@@ -22,6 +22,50 @@ const SINGLE_IMAGE_SRCSET_STEMS = new Set([
   "Whipple-logo-w-words-black-on-transparent"
 ]);
 
+const STATIC_SCRIPT_ASSETS = new Set([
+  "index.html..-eJytkDEOwjAMRS9EGlUIFQ.css",
+  "index.html..-eJx9jDsKgDAQRC+k2dioKc.css",
+  "index.html..-eJxlzNEKgzAMheEXWhsmw3.css"
+]);
+
+const STATIC_ASSET_NAME_STEMS = new Map([
+  ["index.html..-eJwrL9DNzEvOKU1JLdbPKt.css", "mediaelement"],
+  ["index.html..-eJx1jMEKwjAQRH%2FINCkV.css", "popup-zh-menu"],
+  ["index.html..-eJx1jMEKwjAQRH%2FINKQU.css", "popup-en-menu"],
+  ["index.html..-eJx9jDsKgDAQRC+k2dioKc.css", "smartmenus-navigation"],
+  ["index.html..-eJxlzNEKgzAMheEXWhsmw3.css", "elementor-pro-runtime"],
+  ["index.html..-eJyVi1EKgCAQBS+UbcaCX9.css", "google-fonts"],
+  ["index.html..-eJyVjssKwjAQRX.css", "elementor-social-icons"],
+  ["index.html..-eJydj8sKwkAMRX%2FIdFCk.css", "elementor-spacer"],
+  ["index.html..-eJylVF1vgzAM%2FENLGW3V.css", "page-en-s02"],
+  ["index.html..-eJylVNFygyAQ%2FKFSqkmj.css", "page-zh-s02"],
+  ["index.html..-eJylkN0KwjAMRl%2FIGhTZ.css", "hfe-widgets"],
+  ["index.html..-eJyllNFOwzAMRX+IrGxM63.css", "page-en-home"],
+  ["index.html..-eJyllNFugzAMRX9oKc06Uf.css", "page-zh-home"],
+  ["index.html..-eJytVF1PwzAM%2FEOEsg+t.css", "page-en-s01"],
+  ["index.html..-eJytVF1TwyAQ.css", "page-zh-credits"],
+  ["index.html..-eJytVMtygzAM%2FKE6lLxI.css", "page-en-s05"],
+  ["index.html..-eJytVNFOwzAM%2FCFC1Y11.css", "page-zh-s03"],
+  ["index.html..-eJytVNFOwzAM%2FCFClRW2.css", "page-zh-s04"],
+  ["index.html..-eJytVNFOwzAM%2FCGyKmOs.css", "page-zh-s05"],
+  ["index.html..-eJytVNFugzAM%2FKGljLKV.css", "page-zh-s01"],
+  ["index.html..-eJytVNFuwjAM%2FKGFUkDA-2.css", "page-en-s03"],
+  ["index.html..-eJytVNtSgzAQ%2FSFTxNZS.css", "page-en-credits"],
+  ["index.html..-eJytkDEOwjAMRS9EGlUIFQ.css", "astra-theme"]
+]);
+
+const JS_ASSET_NAME_STEMS = new Map([
+  ["wp-includes/js/jquery/jquery.min.js", "jquery.min"],
+  ["wp-includes/js/jquery/jquery-migrate.min.js", "jquery-migrate.min"],
+  ["wp-includes/js/wp-emoji-release.min.js", "wp-emoji-release.min"],
+  ["wp-content/plugins/elementor/assets/lib/font-awesome/js/v4-shims.min.js", "font-awesome-v4-shims.min"],
+  ["wp-content/plugins/elementor/assets/js/frontend.min.js", "elementor-frontend.min"],
+  ["wp-content/plugins/elementor-pro/assets/js/frontend.min.js", "elementor-pro-frontend.min"],
+  ["wp-content/plugins/elementor-pro/assets/js/elements-handlers.min.js", "elementor-pro-elements-handlers.min"],
+  ["wp-content/plugins/gutenberg/build/scripts/hooks/index.min.js", "wp-hooks.min"],
+  ["wp-content/plugins/gutenberg/build/scripts/i18n/index.min.js", "wp-i18n.min"]
+]);
+
 const assetMap = new Map();
 const contentAssetMap = new Map();
 const directoryMap = new Map();
@@ -33,10 +77,10 @@ const PAGE_FIXES = {
   "en/home-en/s04-en/index.html": {
     extraCssId: "clean-s04-en-page-css",
     sourceCssPath: path.join(SOURCE_ROOT, "_static/index.html..-eJytVNFOwzAM%2FCFClRW2.css"),
-    targetCssPath: path.join(OUTPUT_ASSETS, "css/s04-en-page-2016.css"),
+    targetCssStem: "page-en-s04",
     sourceElementorId: "3688",
     targetElementorId: "2016",
-    insertAfterHrefIncludes: "eJytVNFuwjAM"
+    insertAfterHrefIncludes: "page-en-s03"
   }
 };
 
@@ -115,6 +159,10 @@ function hashFor(value) {
   return crypto.createHash("md5").update(value).digest("hex").slice(0, 8);
 }
 
+function contentHashFor(sourcePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(sourcePath)).digest("hex").slice(0, 8);
+}
+
 function contentKeyFor(sourcePath) {
   const buffer = fs.readFileSync(sourcePath);
   return `${buffer.length}:${crypto.createHash("sha256").update(buffer).digest("hex")}`;
@@ -141,7 +189,7 @@ function encodeHtmlRef(filePath) {
   return filePath.replace(/%/g, "%25");
 }
 
-function safeName(sourcePath) {
+function safeName(sourcePath, includeHash = true) {
   const parsed = path.parse(sourcePath);
   const stem = parsed.name
     .normalize("NFKD")
@@ -149,11 +197,17 @@ function safeName(sourcePath) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80) || "asset";
-  return `${stem}-${hashFor(sourcePath)}${parsed.ext.toLowerCase()}`;
+  const suffix = includeHash ? `-${hashFor(sourcePath)}` : "";
+  return `${stem}${suffix}${parsed.ext.toLowerCase()}`;
+}
+
+function isStaticScriptAsset(sourcePath) {
+  return STATIC_SCRIPT_ASSETS.has(path.basename(sourcePath));
 }
 
 function outputSubdirFor(sourcePath) {
   const ext = path.extname(sourcePath).toLowerCase();
+  if (CSS_EXTENSIONS.has(ext) && isStaticScriptAsset(sourcePath)) return "js";
   if (CSS_EXTENSIONS.has(ext)) return "css";
   if (JS_EXTENSIONS.has(ext)) return "js";
   if (FONT_EXTENSIONS.has(ext)) return "fonts";
@@ -162,12 +216,32 @@ function outputSubdirFor(sourcePath) {
   return null;
 }
 
+function semanticAssetName(sourcePath, subdir, stem) {
+  const ext = subdir === "js" ? ".js" : path.extname(sourcePath).toLowerCase();
+  if (subdir === "css" || subdir === "js") {
+    return `${stem}${ext}`;
+  }
+
+  return `${stem}-${contentHashFor(sourcePath)}${ext}`;
+}
+
 function outputAssetName(sourcePath, subdir) {
   if (subdir === "fonts") {
     return path.basename(sourcePath);
   }
 
-  return safeName(path.relative(SOURCE_ROOT, sourcePath));
+  const staticStem = STATIC_ASSET_NAME_STEMS.get(path.basename(sourcePath));
+  if (staticStem) {
+    return semanticAssetName(sourcePath, subdir, staticStem);
+  }
+
+  const relativeSourcePath = toPosix(path.relative(SOURCE_ROOT, sourcePath));
+  const jsStem = subdir === "js" ? JS_ASSET_NAME_STEMS.get(relativeSourcePath) : null;
+  if (jsStem) {
+    return semanticAssetName(sourcePath, subdir, jsStem);
+  }
+
+  return safeName(relativeSourcePath, subdir !== "css" && subdir !== "js");
 }
 
 function resolveFromRef(contextFilePath, cleanRef) {
@@ -465,6 +539,16 @@ function registerDirectory(sourcePath) {
   return record;
 }
 
+function isLegacyRuntimeFont(sourceFile) {
+  const ext = path.extname(sourceFile).toLowerCase();
+  if (![".eot", ".svg", ".ttf"].includes(ext)) {
+    return false;
+  }
+
+  const parts = toPosix(path.relative(SOURCE_ROOT, sourceFile)).split("/");
+  return parts.includes("fonts") || parts.includes("webfonts");
+}
+
 function copyDirectory(directory) {
   if (copiedDirectories.has(directory.rootSourcePath)) {
     return;
@@ -476,23 +560,28 @@ function copyDirectory(directory) {
 
   ensureDir(path.dirname(directory.rootTargetPath));
 
-  if (path.resolve(directory.rootSourcePath) === path.resolve(path.join(SOURCE_ROOT, "wp-content/uploads"))) {
-    for (const sourceFile of walk(directory.rootSourcePath)) {
-      const relativePath = path.relative(directory.rootSourcePath, sourceFile);
-      const subdir = outputSubdirFor(sourceFile);
+  const isUploadsRoot = path.resolve(directory.rootSourcePath) === path.resolve(path.join(SOURCE_ROOT, "wp-content/uploads"));
+
+  for (const sourceFile of walk(directory.rootSourcePath)) {
+    const relativePath = path.relative(directory.rootSourcePath, sourceFile);
+    const subdir = outputSubdirFor(sourceFile);
+
+    if (isUploadsRoot) {
       if (!subdir || subdir === "images" || subdir === "media") {
         continue;
       }
-
-      const targetFile = subdir === "fonts"
-        ? path.join(OUTPUT_ASSETS, "fonts", path.basename(sourceFile))
-        : path.join(directory.rootTargetPath, relativePath);
-
-      ensureDir(path.dirname(targetFile));
-      fs.copyFileSync(sourceFile, targetFile);
     }
-  } else {
-    fs.cpSync(directory.rootSourcePath, directory.rootTargetPath, { recursive: true });
+
+    if (isLegacyRuntimeFont(sourceFile)) {
+      continue;
+    }
+
+    const targetFile = isUploadsRoot && subdir === "fonts"
+      ? path.join(OUTPUT_ASSETS, "fonts", path.basename(sourceFile))
+      : path.join(directory.rootTargetPath, relativePath);
+
+    ensureDir(path.dirname(targetFile));
+    fs.copyFileSync(sourceFile, targetFile);
   }
 
   copiedDirectories.add(directory.rootSourcePath);
@@ -755,13 +844,19 @@ function writeElementorPageCssFix(fix) {
     return null;
   }
 
-  ensureDir(path.dirname(fix.targetCssPath));
+  const targetCssPath = path.join(
+    OUTPUT_ASSETS,
+    "css",
+    semanticAssetName(fix.sourceCssPath, "css", fix.targetCssStem)
+  );
+
+  ensureDir(path.dirname(targetCssPath));
   const sourceCss = fs.readFileSync(fix.sourceCssPath, "utf8");
   const fontCleanedCss = rewriteFontFaceBlocks(sourceCss, fix.sourceCssPath);
-  const rewrittenCss = rewriteCssUrls(fontCleanedCss, fix.sourceCssPath, fix.targetCssPath)
+  const rewrittenCss = rewriteCssUrls(fontCleanedCss, fix.sourceCssPath, targetCssPath)
     .replace(new RegExp(`\\belementor-${fix.sourceElementorId}\\b`, "g"), `elementor-${fix.targetElementorId}`);
-  fs.writeFileSync(fix.targetCssPath, rewrittenCss);
-  return fix.targetCssPath;
+  fs.writeFileSync(targetCssPath, rewrittenCss);
+  return targetCssPath;
 }
 
 function applyPageFixes(html, sourcePath, outputPath) {
