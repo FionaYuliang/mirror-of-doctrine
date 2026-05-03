@@ -20,6 +20,7 @@ const IMAGE_EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".pn
 const MEDIA_EXTENSIONS = new Set([".mp3", ".mp4", ".ogg", ".webm"]);
 
 const assetMap = new Map();
+const contentAssetMap = new Map();
 const directoryMap = new Map();
 const pageRouteMap = new Map();
 const copiedCss = new Set();
@@ -109,6 +110,11 @@ function toPosix(filePath) {
 
 function hashFor(value) {
   return crypto.createHash("md5").update(value).digest("hex").slice(0, 8);
+}
+
+function contentKeyFor(sourcePath) {
+  const buffer = fs.readFileSync(sourcePath);
+  return `${buffer.length}:${crypto.createHash("sha256").update(buffer).digest("hex")}`;
 }
 
 function stripQueryAndHash(rawRef) {
@@ -401,9 +407,24 @@ function registerAsset(sourcePath) {
     return assetMap.get(sourcePath);
   }
 
+  if (subdir === "images") {
+    const contentKey = contentKeyFor(sourcePath);
+    const existing = contentAssetMap.get(contentKey);
+
+    if (existing) {
+      assetMap.set(sourcePath, existing);
+      return existing;
+    }
+  }
+
   const targetPath = path.join(OUTPUT_ASSETS, subdir, outputAssetName(sourcePath, subdir));
   const record = { sourcePath, targetPath, subdir };
   assetMap.set(sourcePath, record);
+
+  if (subdir === "images") {
+    contentAssetMap.set(contentKeyFor(sourcePath), record);
+  }
+
   return record;
 }
 
@@ -456,6 +477,10 @@ function copyDirectory(directory) {
     for (const sourceFile of walk(directory.rootSourcePath)) {
       const relativePath = path.relative(directory.rootSourcePath, sourceFile);
       const subdir = outputSubdirFor(sourceFile);
+      if (!subdir || subdir === "images" || subdir === "media") {
+        continue;
+      }
+
       const targetFile = subdir === "fonts"
         ? path.join(OUTPUT_ASSETS, "fonts", path.basename(sourceFile))
         : path.join(directory.rootTargetPath, relativePath);
