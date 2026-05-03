@@ -18,6 +18,9 @@ const JS_EXTENSIONS = new Set([".js", ".mjs"]);
 const FONT_EXTENSIONS = new Set([".woff", ".woff2"]);
 const IMAGE_EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 const MEDIA_EXTENSIONS = new Set([".mp3", ".mp4", ".ogg", ".webm"]);
+const SINGLE_IMAGE_SRCSET_STEMS = new Set([
+  "Whipple-logo-w-words-black-on-transparent"
+]);
 
 const assetMap = new Map();
 const contentAssetMap = new Map();
@@ -679,6 +682,20 @@ function rewriteHtmlCssUrls(html, contextFilePath, outputDir) {
   });
 }
 
+function collapseSingleImageSrcsets(html) {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const shouldCollapse = [...SINGLE_IMAGE_SRCSET_STEMS].some((stem) => tag.includes(stem));
+
+    if (!shouldCollapse) {
+      return tag;
+    }
+
+    return tag
+      .replace(/\s+srcset=("([^"]*)"|'([^']*)')/i, "")
+      .replace(/\s+sizes=("([^"]*)"|'([^']*)')/i, "");
+  });
+}
+
 function rewriteEscapedLocalRefs(html, sourcePath, outputPath) {
   const outputDir = path.dirname(outputPath);
 
@@ -705,7 +722,7 @@ function rewritePlainEmbeddedLocalRefs(html, sourcePath, outputPath) {
 
 function rewriteHtmlAttributes(html, sourcePath, outputPath) {
   const outputDir = path.dirname(outputPath);
-  let rewritten = html;
+  let rewritten = collapseSingleImageSrcsets(html);
 
   rewritten = rewritten.replace(/\s(href|src|poster|content)=("([^"]*)"|'([^']*)')/gi, (match, attr, quoted, doubleQuoted, singleQuoted) => {
     const value = doubleQuoted || singleQuoted || "";
