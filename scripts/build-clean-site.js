@@ -66,12 +66,26 @@ const JS_ASSET_NAME_STEMS = new Map([
   ["wp-content/plugins/gutenberg/build/scripts/i18n/index.min.js", "wp-i18n.min"]
 ]);
 
+const GOOGLE_FONT_FACE_ALLOWLIST = new Map([
+  ["poppins", {
+    styles: new Set(["normal"]),
+    weights: new Set(["400", "500", "600"]),
+    subsets: new Set(["latin", "latin-ext"])
+  }],
+  ["roboto", {
+    styles: new Set(["normal"]),
+    weights: new Set(["400", "500"]),
+    subsets: new Set(["latin", "latin-ext"])
+  }]
+]);
+
 const assetMap = new Map();
 const contentAssetMap = new Map();
 const directoryMap = new Map();
 const pageRouteMap = new Map();
 const copiedCss = new Set();
 const copiedDirectories = new Set();
+let googleFontAssetNames = null;
 
 const PAGE_FIXES = {
   "en/home-en/s04-en/index.html": {
@@ -225,9 +239,161 @@ function semanticAssetName(sourcePath, subdir, stem) {
   return `${stem}-${contentHashFor(sourcePath)}${ext}`;
 }
 
+function slugifyNamePart(value) {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "unknown";
+}
+
+function cssDeclarationValue(block, propertyName) {
+  const match = block.match(new RegExp(`${propertyName}\\s*:\\s*([^;]+)`, "i"));
+  return match ? match[1].trim().replace(/^['"]|['"]$/g, "") : "";
+}
+
+function fontWeightName(weights) {
+  const numericWeights = [...weights]
+    .flatMap((weight) => weight.match(/\d+/g) || [])
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  const uniqueWeights = [...new Set(numericWeights)];
+
+  if (uniqueWeights.length === 0) {
+    return "unknown";
+  }
+
+  const isFullVariableRange = uniqueWeights.length > 2
+    && uniqueWeights[0] === 100
+    && uniqueWeights[uniqueWeights.length - 1] === 900
+    && uniqueWeights.every((weight, index) => weight === (index + 1) * 100);
+
+  if (isFullVariableRange) {
+    return "variable-100-900";
+  }
+
+  return uniqueWeights.join("-");
+}
+
+function googleFontAssetStem(metadata) {
+  return [
+    slugifyNamePart(metadata.family),
+    slugifyNamePart(metadata.style || "normal"),
+    fontWeightName(metadata.weights),
+    [...metadata.subsets].map(slugifyNamePart).sort().join("-")
+  ].filter(Boolean).join("-");
+}
+
+function googleFontFamilyKey(family) {
+  return slugifyNamePart(family);
+}
+
+function shouldKeepGoogleFontFace(metadata) {
+  const allowlist = GOOGLE_FONT_FACE_ALLOWLIST.get(googleFontFamilyKey(metadata.family));
+
+  if (!allowlist) {
+    return true;
+  }
+
+  return allowlist.styles.has(slugifyNamePart(metadata.style || "normal"))
+    && allowlist.weights.has(String(metadata.weight).trim())
+    && allowlist.subsets.has(slugifyNamePart(metadata.subset || ""));
+}
+
+function isManagedGoogleFontSource(sourcePath) {
+  if (!sourcePath) {
+    return false;
+  }
+
+  const relativePath = toPosix(path.relative(SOURCE_ROOT, sourcePath));
+  return /\/google-fonts\/fonts\/(?:poppins|roboto)-[^/]+\.woff2$/i.test(`/${relativePath}`);
+}
+
+function buildGoogleFontAssetNames() {
+  const metadataByPath = new Map();
+
+  for (const cssPath of walk(SOURCE_ROOT, (filePath) => path.extname(filePath).toLowerCase() === ".css")) {
+    const cssText = fs.readFileSync(cssPath, "utf8");
+    if (!cssText.includes("@font-face") || !cssText.includes("google-fonts")) {
+      continue;
+    }
+
+    const fontFaceRe = /\/\*\s*([^*]+?)\s*\*\/\s*@font-face\s*{([\s\S]*?)}/g;
+    for (const match of cssText.matchAll(fontFaceRe)) {
+      const subset = match[1].trim();
+      const block = match[2];
+      const family = cssDeclarationValue(block, "font-family");
+      const style = cssDeclarationValue(block, "font-style") || "normal";
+      const weight = cssDeclarationValue(block, "font-weight");
+
+      if (!family || !weight) {
+        continue;
+      }
+
+      if (!shouldKeepGoogleFontFace({ family, style, weight, subset })) {
+        continue;
+      }
+
+      for (const urlMatch of block.matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)) {
+        const fontPath = resolveLocalRef(cssPath, urlMatch[2]);
+        const ext = fontPath ? path.extname(fontPath).toLowerCase() : "";
+
+        if (!fontPath || !fs.existsSync(fontPath) || !fs.statSync(fontPath).isFile() || !FONT_EXTENSIONS.has(ext)) {
+          continue;
+        }
+
+        if (!isManagedGoogleFontSource(fontPath)) {
+          continue;
+        }
+
+        let metadata = metadataByPath.get(fontPath);
+        if (!metadata) {
+          metadata = { family, style, weights: new Set(), subsets: new Set() };
+          metadataByPath.set(fontPath, metadata);
+        }
+
+        metadata.weights.add(weight);
+        metadata.subsets.add(subset);
+      }
+    }
+  }
+
+  const namesByPath = new Map();
+  const usedNames = new Map();
+
+  for (const [fontPath, metadata] of metadataByPath) {
+    const ext = path.extname(fontPath).toLowerCase();
+    const stem = googleFontAssetStem(metadata);
+    let name = `${stem}${ext}`;
+
+    if (usedNames.has(name) && usedNames.get(name) !== fontPath) {
+      name = `${stem}-${contentHashFor(fontPath)}${ext}`;
+    }
+
+    usedNames.set(name, fontPath);
+    namesByPath.set(fontPath, name);
+  }
+
+  return namesByPath;
+}
+
+function googleFontAssetName(sourcePath) {
+  if (!googleFontAssetNames) {
+    googleFontAssetNames = buildGoogleFontAssetNames();
+  }
+
+  return googleFontAssetNames.get(sourcePath) || null;
+}
+
+function shouldCopyFontAsset(sourcePath) {
+  return !isManagedGoogleFontSource(sourcePath) || Boolean(googleFontAssetName(sourcePath));
+}
+
 function outputAssetName(sourcePath, subdir) {
   if (subdir === "fonts") {
-    return path.basename(sourcePath);
+    return googleFontAssetName(sourcePath) || path.basename(sourcePath);
   }
 
   const staticStem = STATIC_ASSET_NAME_STEMS.get(path.basename(sourcePath));
@@ -480,6 +646,10 @@ function registerAsset(sourcePath) {
     return null;
   }
 
+  if (subdir === "fonts" && !shouldCopyFontAsset(sourcePath)) {
+    return null;
+  }
+
   if (assetMap.has(sourcePath)) {
     return assetMap.get(sourcePath);
   }
@@ -576,9 +746,15 @@ function copyDirectory(directory) {
       continue;
     }
 
-    const targetFile = isUploadsRoot && subdir === "fonts"
-      ? path.join(OUTPUT_ASSETS, "fonts", path.basename(sourceFile))
-      : path.join(directory.rootTargetPath, relativePath);
+    if (isUploadsRoot && subdir === "fonts") {
+      const asset = registerAsset(sourceFile);
+      if (asset) {
+        copyAsset(asset);
+      }
+      continue;
+    }
+
+    const targetFile = path.join(directory.rootTargetPath, relativePath);
 
     ensureDir(path.dirname(targetFile));
     fs.copyFileSync(sourceFile, targetFile);
@@ -655,15 +831,34 @@ function fontFormatForRef(ref) {
 }
 
 function rewriteFontFaceBlocks(text, contextFilePath) {
-  return text.replace(/@font-face\s*{[^}]*}/gi, (block) => {
+  return text.replace(/(?:\/\*\s*[^*]+?\s*\*\/\s*)?@font-face\s*{[^}]*}/gi, (fontFaceText) => {
+    const subset = fontFaceText.match(/^\/\*\s*([^*]+?)\s*\*\//)?.[1]?.trim() || "";
+    const block = fontFaceText.match(/@font-face\s*{[^}]*}/i)?.[0] || fontFaceText;
+    const blockPrefix = fontFaceText.slice(0, fontFaceText.indexOf(block));
+
     if (!/url\(/i.test(block)) {
-      return block;
+      return fontFaceText;
+    }
+
+    const fontUrls = [...block.matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)];
+    const managedGoogleFontPaths = fontUrls
+      .map((match) => resolveLocalRef(contextFilePath, match[2]))
+      .filter(isManagedGoogleFontSource);
+
+    if (managedGoogleFontPaths.length > 0) {
+      const family = cssDeclarationValue(block, "font-family");
+      const style = cssDeclarationValue(block, "font-style") || "normal";
+      const weight = cssDeclarationValue(block, "font-weight");
+
+      if (!shouldKeepGoogleFontFace({ family, style, weight, subset })) {
+        return "";
+      }
     }
 
     const entries = [];
     const seen = new Set();
 
-    for (const match of block.matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)) {
+    for (const match of fontUrls) {
       for (const ref of fontReplacementRefs(contextFilePath, match[2])) {
         const format = fontFormatForRef(ref);
 
@@ -690,7 +885,7 @@ function rewriteFontFaceBlocks(text, contextFilePath) {
       .join(",\n");
     const withoutSrc = block.replace(/\s*src\s*:[^;}]+;?/gi, "");
 
-    return withoutSrc.replace(/\s*}\s*$/, `\n\tsrc: ${src};\n}`);
+    return `${blockPrefix}${withoutSrc.replace(/\s*}\s*$/, `\n\tsrc: ${src};\n}`)}`;
   });
 }
 
