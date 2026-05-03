@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local static preview server for the mirrored doctrine-of-signatures site.",
   "scripts": {
+    "build:clean": "node scripts/build-clean-site.js",
     "start": "node server.js",
     "dev": "node server.js"
   },
