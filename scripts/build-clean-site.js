@@ -15,7 +15,7 @@ const PAGE_ROOTS = [
 const REMOTE_RE = /^(?:https?:)?\/\//i;
 const CSS_EXTENSIONS = new Set([".css"]);
 const JS_EXTENSIONS = new Set([".js", ".mjs"]);
-const FONT_EXTENSIONS = new Set([".woff", ".woff2", ".ttf", ".otf", ".eot"]);
+const FONT_EXTENSIONS = new Set([".woff", ".woff2"]);
 const IMAGE_EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 const MEDIA_EXTENSIONS = new Set([".mp3", ".mp4", ".ogg", ".webm"]);
 
@@ -151,6 +151,14 @@ function outputSubdirFor(sourcePath) {
   if (IMAGE_EXTENSIONS.has(ext)) return "images";
   if (MEDIA_EXTENSIONS.has(ext)) return "media";
   return null;
+}
+
+function outputAssetName(sourcePath, subdir) {
+  if (subdir === "fonts") {
+    return path.basename(sourcePath);
+  }
+
+  return safeName(path.relative(SOURCE_ROOT, sourcePath));
 }
 
 function resolveFromRef(contextFilePath, cleanRef) {
@@ -393,7 +401,7 @@ function registerAsset(sourcePath) {
     return assetMap.get(sourcePath);
   }
 
-  const targetPath = path.join(OUTPUT_ASSETS, subdir, safeName(path.relative(SOURCE_ROOT, sourcePath)));
+  const targetPath = path.join(OUTPUT_ASSETS, subdir, outputAssetName(sourcePath, subdir));
   const record = { sourcePath, targetPath, subdir };
   assetMap.set(sourcePath, record);
   return record;
@@ -443,7 +451,22 @@ function copyDirectory(directory) {
   }
 
   ensureDir(path.dirname(directory.rootTargetPath));
-  fs.cpSync(directory.rootSourcePath, directory.rootTargetPath, { recursive: true });
+
+  if (path.resolve(directory.rootSourcePath) === path.resolve(path.join(SOURCE_ROOT, "wp-content/uploads"))) {
+    for (const sourceFile of walk(directory.rootSourcePath)) {
+      const relativePath = path.relative(directory.rootSourcePath, sourceFile);
+      const subdir = outputSubdirFor(sourceFile);
+      const targetFile = subdir === "fonts"
+        ? path.join(OUTPUT_ASSETS, "fonts", path.basename(sourceFile))
+        : path.join(directory.rootTargetPath, relativePath);
+
+      ensureDir(path.dirname(targetFile));
+      fs.copyFileSync(sourceFile, targetFile);
+    }
+  } else {
+    fs.cpSync(directory.rootSourcePath, directory.rootTargetPath, { recursive: true });
+  }
+
   copiedDirectories.add(directory.rootSourcePath);
 }
 
@@ -466,6 +489,94 @@ function rewriteCssUrls(cssText, cssSourcePath, cssOutputPath) {
   });
 }
 
+function fontFallbackStems(stem) {
+  const stems = [stem];
+
+  if (/^times-new-roman-\d+$/i.test(stem)) {
+    stems.push("times-new-roman");
+  }
+
+  return stems;
+}
+
+function fontReplacementRefs(contextFilePath, rawRef) {
+  const sourcePath = resolveLocalRef(contextFilePath, rawRef);
+
+  if (!sourcePath || !fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+    return [];
+  }
+
+  const ext = path.extname(sourcePath).toLowerCase();
+  if (FONT_EXTENSIONS.has(ext)) {
+    return [rawRef];
+  }
+
+  const { pathPart, queryPart, hashPart } = splitRef(rawRef);
+  const refDir = pathPart.includes("/") ? pathPart.slice(0, pathPart.lastIndexOf("/") + 1) : "";
+  const sourceDir = path.dirname(sourcePath);
+  const sourceStem = path.basename(sourcePath, ext);
+  const refs = [];
+
+  for (const stem of fontFallbackStems(sourceStem)) {
+    for (const nextExt of [".woff2", ".woff"]) {
+      const nextPath = path.join(sourceDir, `${stem}${nextExt}`);
+
+      if (fs.existsSync(nextPath)) {
+        refs.push(`${refDir}${stem}${nextExt}${queryPart}${hashPart}`);
+      }
+    }
+  }
+
+  return refs;
+}
+
+function fontFormatForRef(ref) {
+  const ext = path.extname(stripQueryAndHash(ref)).toLowerCase();
+  if (ext === ".woff2") return "woff2";
+  if (ext === ".woff") return "woff";
+  return null;
+}
+
+function rewriteFontFaceBlocks(text, contextFilePath) {
+  return text.replace(/@font-face\s*{[^}]*}/gi, (block) => {
+    if (!/url\(/i.test(block)) {
+      return block;
+    }
+
+    const entries = [];
+    const seen = new Set();
+
+    for (const match of block.matchAll(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi)) {
+      for (const ref of fontReplacementRefs(contextFilePath, match[2])) {
+        const format = fontFormatForRef(ref);
+
+        if (!format) {
+          continue;
+        }
+
+        const key = `${ref}\0${format}`;
+        if (seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        entries.push({ ref, format });
+      }
+    }
+
+    if (entries.length === 0) {
+      return "";
+    }
+
+    const src = entries
+      .map((entry, index) => `${index === 0 ? "" : "\t\t"}url('${entry.ref}') format('${entry.format}')`)
+      .join(",\n");
+    const withoutSrc = block.replace(/\s*src\s*:[^;}]+;?/gi, "");
+
+    return withoutSrc.replace(/\s*}\s*$/, `\n\tsrc: ${src};\n}`);
+  });
+}
+
 function copyAsset(asset) {
   ensureDir(path.dirname(asset.targetPath));
 
@@ -476,7 +587,8 @@ function copyAsset(asset) {
 
     copiedCss.add(asset.sourcePath);
     const cssText = fs.readFileSync(asset.sourcePath, "utf8");
-    fs.writeFileSync(asset.targetPath, rewriteCssUrls(cssText, asset.sourcePath, asset.targetPath));
+    const fontCleanedCss = rewriteFontFaceBlocks(cssText, asset.sourcePath);
+    fs.writeFileSync(asset.targetPath, rewriteCssUrls(fontCleanedCss, asset.sourcePath, asset.targetPath));
     return;
   }
 
@@ -589,6 +701,7 @@ function rewriteHtmlAttributes(html, sourcePath, outputPath) {
     return ` srcset=${quote}${nextValue}${quote}`;
   });
 
+  rewritten = rewriteFontFaceBlocks(rewritten, sourcePath);
   rewritten = rewriteHtmlCssUrls(rewritten, sourcePath, outputDir);
   rewritten = rewriteEscapedLocalRefs(rewritten, sourcePath, outputPath);
   rewritten = rewritePlainEmbeddedLocalRefs(rewritten, sourcePath, outputPath);
@@ -602,7 +715,8 @@ function writeElementorPageCssFix(fix) {
 
   ensureDir(path.dirname(fix.targetCssPath));
   const sourceCss = fs.readFileSync(fix.sourceCssPath, "utf8");
-  const rewrittenCss = rewriteCssUrls(sourceCss, fix.sourceCssPath, fix.targetCssPath)
+  const fontCleanedCss = rewriteFontFaceBlocks(sourceCss, fix.sourceCssPath);
+  const rewrittenCss = rewriteCssUrls(fontCleanedCss, fix.sourceCssPath, fix.targetCssPath)
     .replace(new RegExp(`\\belementor-${fix.sourceElementorId}\\b`, "g"), `elementor-${fix.targetElementorId}`);
   fs.writeFileSync(fix.targetCssPath, rewrittenCss);
   return fix.targetCssPath;
